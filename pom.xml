@@ -115,6 +115,24 @@
             <version>${awaitility.version}</version>
             <scope>test</scope>
         </dependency>
+    
+      <dependency>
+        <groupId>com.legsem.legstar</groupId>
+        <artifactId>legstar-cmockrt</artifactId>
+        <version>1.5.3</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>org.coodex.concrete.amqp</groupId>
+        <artifactId>concrete-amqp-service</artifactId>
+        <version>0.5.3-RC1</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>org.coodex.concrete.amqp</groupId>
+        <artifactId>concrete-amqp-service</artifactId>
+        <version>0.5.3-RC1</version>
+      </dependency>
     </dependencies>
 
     <build>
