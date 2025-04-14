@@ -1,0 +1,174 @@
+package com.Grimmer_MockNode_Tests;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.github.fridujo.rabbitmq.mock.AmqArguments;
+import com.github.fridujo.rabbitmq.mock.MockChannel;
+import com.github.fridujo.rabbitmq.mock.MockConnection;
+import com.github.fridujo.rabbitmq.mock.MockNode;
+import com.github.fridujo.rabbitmq.mock.MockQueue;
+import com.github.fridujo.rabbitmq.mock.Receiver;
+import com.github.fridujo.rabbitmq.mock.ReceiverPointer;
+import com.github.fridujo.rabbitmq.mock.ReceiverRegistry;
+import com.github.fridujo.rabbitmq.mock.metrics.MetricsCollectorWrapper;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.Consumer;
+
+public class exchangeDeleteTest {
+    
+    private MockNode mockNode;
+    private MockQueue mockQueue;
+    private MockConnection mockConnection;
+    private Consumer mockConsumer;
+    private Supplier<Long> deliveryTagSupplier;
+    private MockChannel mockChannel;
+    private ReceiverRegistry receiverRegistry = new ReceiverRegistry() {
+        @Override
+        public Optional<Receiver> getReceiver(ReceiverPointer receiverPointer) {
+            return Optional.empty(); // No actual receiver used in this test
+        }
+    };
+
+    // All are used in these tests
+    @BeforeEach
+    void setUp() {
+        // Create a real MockNode instance
+        mockNode = new MockNode();
+
+        // Create a real MockQueue with valid constructor arguments
+        mockQueue = new MockQueue("testQueue", AmqArguments.empty(), receiverRegistry);
+
+        // Correctly instantiate MockConnection with MockNode and MetricsCollectorWrapper
+        ConnectionFactory connectionFactory = new ConnectionFactory(); // Needed for MetricsCollectorWrapper
+        MetricsCollectorWrapper metricsCollector = MetricsCollectorWrapper.Builder.build(connectionFactory);
+        mockConnection = new MockConnection(mockNode, metricsCollector);
+
+        // Mock Channel creation
+        mockChannel = new MockChannel(1, mockNode, mockConnection, metricsCollector);
+
+        // Comsumer interface
+        mockConsumer = mock(Consumer.class);
+        doNothing().when(mockConsumer).handleConsumeOk(anyString());
+
+        // deliveryTagSupplier cannot be null error
+        deliveryTagSupplier = () -> 1L;
+    }
+
+    // Test for deleting exchange
+    @Test
+    void testExchangeDelete() {
+        Map<String, Object> arguments = new HashMap<>();
+        mockNode.queueDeclare(
+            "publish-test-purge",
+            false,
+            false,
+            false,
+            arguments
+        );
+
+        mockNode.exchangeDeclare(
+            "publish-test-exchange",
+            "topic",
+            true,
+            false,
+            false,
+            arguments
+        );
+
+        // Bind the queue to the exchange with a routing key
+        mockNode.queueBind(
+            "publish-test-purge",
+            "publish-test-exchange",
+            "test-routing-key",
+            arguments
+        );
+
+        mockNode.exchangeDelete("publish-test-exchange");
+
+        assertThrows(IllegalArgumentException.class, () -> mockNode.basicPublish(
+                "publish-test-exchange",
+                "test-routing-key",
+                false,
+                false,
+                null,
+                null
+            )
+        );
+    }
+
+    @Test
+    void testDeleteNonexistentExchange() {
+        // Deleting a non-existent exchange should not throw (depends on implementation)
+        assertDoesNotThrow(() -> mockNode.exchangeDelete("nonexistent-exchange"), "Deleting a non-existent exchange should not throw");
+    }
+
+    // Test for deleting exchange with multiple queues
+    @Test
+    void testMultExchangeDelete() {
+        Map<String, Object> arguments = new HashMap<>();
+        mockNode.queueDeclare(
+            "publish-test-purge",
+            false,
+            false,
+            false,
+            arguments
+        );
+        mockNode.queueDeclare(
+            "publish-test-purge2",
+            false,
+            false,
+            false,
+            arguments
+        );
+
+        mockNode.exchangeDeclare(
+            "publish-test-exchange",
+            "topic",
+            true,
+            false,
+            false,
+            arguments
+        );
+
+        // Bind the queue to the exchange with a routing key
+        mockNode.queueBind(
+            "publish-test-purge",
+            "publish-test-exchange",
+            "test-routing-key",
+            arguments
+        );
+
+        // Bind the queue to the exchange with a routing key
+        mockNode.queueBind(
+            "publish-test-purge2",
+            "publish-test-exchange",
+            "test-routing-key",
+            arguments
+        );
+
+        mockNode.exchangeDelete("publish-test-exchange");
+
+        assertThrows(IllegalArgumentException.class, () -> mockNode.basicPublish(
+                "publish-test-exchange",
+                "test-routing-key",
+                false,
+                false,
+                null,
+                null
+            )
+        );
+    }
+}
